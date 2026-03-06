@@ -1,11 +1,6 @@
 """
-TrackerAgent - 求职秘书
-职责：闭环追踪与反馈分析
-工作逻辑：
-  1. 从 {job_search_results} 中读取上游 ScoutAgent 存入的职位列表
-  2. 调用 fetch_tracking_updates 获取投递状态与反馈时间（模拟邮箱/数据库）
-  3. 生成求职全周期追踪表（职位、公司、Status、Feedback Date）
-  4. 总结本周进度并给出 Action Plan
+TrackerAgent - Application tracker. Reads job list from {job_search_results}, calls fetch_tracking_updates for status/feedback,
+outputs full-cycle tracking table (position, company, status, feedback date).
 """
 
 import random
@@ -14,17 +9,18 @@ from google.adk.agents.llm_agent import Agent
 from google.adk.models.lite_llm import LiteLlm
 
 
-# === 异步工具函数 ===
-
-async def fetch_tracking_updates(jobs: list) -> dict:
+async def fetch_tracking_updates(jobs: list[dict]) -> dict:
     """
-    模拟扫描邮箱或数据库，为职位列表补充投递状态与反馈时间。
-    
-    参数：
-        jobs: 职位列表，每项至少含 title, company（可含 url, location 等）
-    
-    返回：
-        包含 status、enriched jobs（每项新增 status, feedback_date）的字典
+    Fetch updates for a list of job applications (status and feedback date).
+
+    Args:
+        jobs: A list of dictionaries. Each dict must contain at least 'title' and 'company';
+              it may also contain 'url', 'location', etc. Example:
+              [{"title": "Python Developer", "company": "TechCorp", "url": "https://..."}]
+
+    Returns:
+        A dict with "status" ("success"), "jobs" (each item enriched with "status" and "feedback_date"),
+        and "updated_at".
     """
     if not jobs:
         return {
@@ -40,7 +36,6 @@ async def fetch_tracking_updates(jobs: list) -> dict:
     for job in jobs:
         item = dict(job)
         item["status"] = random.choice(statuses)
-        # 随机反馈日期：过去 1～14 天内
         days_ago = random.randint(1, 14)
         item["feedback_date"] = (today - timedelta(days=days_ago)).strftime("%Y-%m-%d")
         enriched.append(item)
@@ -52,36 +47,33 @@ async def fetch_tracking_updates(jobs: list) -> dict:
     }
 
 
-# === TrackerAgent 定义 ===
+def _tracker_after_tool(tool, args, tool_context, tool_response):
+    """After fetch_tracking_updates: log audit. Return None to keep default behavior."""
+    tool_name = getattr(tool, "__name__", None) or str(tool)
+    if tool_name == "fetch_tracking_updates":
+        jobs_count = 0
+        if isinstance(tool_response, dict) and "jobs" in tool_response:
+            jobs_count = len(tool_response.get("jobs", []))
+        print(f"[TrackerAgent after_tool] Tracking table generated, {jobs_count} records — pipeline end audit.")
+    return None
+
 
 tracker_agent = Agent(
-    model=LiteLlm(model='ollama/mistral'),
+    model=LiteLlm(model="gemini/gemini-2.5-flash-lite"),
     name='tracker_agent',
     description="Application Tracker Agent - Track Feedback and Build Application Report",
-    instruction="""You are a job application tracking specialist (求职秘书). You maintain the user's application tracking table.
+    instruction="""You are a job application tracking specialist. You maintain the user's application tracking table.
 You analyze input in English and French, and respond in English only.
+Do NOT call any tool named "Identity Check" or similar; your only allowed tool is fetch_tracking_updates. Input comes from {job_search_results} (from ScoutAgent).
 
-If the data from {job_search_results} is missing or has no "jobs" array, do not call any tools. Reply briefly that job search results are not ready yet and the user should complete the resume confirmation and job search steps first. Then stop.
+Your workflow:
+1. Read the job list from {job_search_results} (stored by ScoutAgent upstream). Extract the "jobs" array.
 
-Your workflow (only when {job_search_results} has a non-empty jobs list):
-1. Read the job list from {job_search_results} (the state from ScoutAgent). Extract the "jobs" array from it.
+2. Call fetch_tracking_updates(jobs) to get application status and feedback date (mock email/DB).
 
-2. Call fetch_tracking_updates(jobs) to get the latest status and feedback date for each position. The tool adds:
-   - status: one of Applied, Interview, Rejected, Pending
-   - feedback_date: date of feedback
-
-3. Build a Markdown table — Full-Cycle Application Tracker:
-   - Columns: Position | Company | Status | Feedback Date
-   - Optionally include Link if available in the job data.
-   Use a clear Markdown table with headers and one row per job.
-
-4. Summarize this week's progress (how many applied, interviews, rejections, pending).
-
-5. Give a short Action Plan: next steps (e.g. follow up on Pending, prepare for Interview, apply to more roles).
-
-Maintain accuracy and clarity. Always present the tracking table first, then the summary and action plan.""",
-    tools=[fetch_tracking_updates]
+3. Generate the full-cycle application tracking table: Position, Company, Status, Feedback Date. Output a clear Markdown table with these columns and one row per job.""",
+    tools=[fetch_tracking_updates],
+    after_tool_callback=_tracker_after_tool,
 )
 
-# === 状态配置（ADK LlmAgent 仅支持 output_key；输入通过 state 的 {job_search_results} 传入）===
 tracker_agent.output_key = "final_application_report"

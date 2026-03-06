@@ -1,11 +1,6 @@
 """
-ScoutAgent - 情报搜寻员
-职责：全网职位抓取与匹配
-工作逻辑：
-  1. 从 {confirmed_resume_profile} 中读取用户目标职位和地点
-  2. 在 LinkedIn、Indeed、Welcome to the Jungle 等平台搜寻职位
-  3. 根据简历匹配度进行评分（1-5星）
-  4. 生成结构化表格（职位名、公司、匹配分、投递链接）
+ScoutAgent - Job discovery. Reads target role/location from {confirmed_resume_profile}, searches jobs (LinkedIn, Indeed, Welcome to the Jungle),
+scores by match (1-5), outputs structured table (position, company, match, link).
 """
 
 import asyncio
@@ -15,22 +10,12 @@ from google.adk.agents.llm_agent import Agent
 from google.adk.models.lite_llm import LiteLlm
 
 
-# === 异步工具函数 ===
-
 async def search_jobs_on_web(query: str, location: str) -> dict:
     """
-    异步搜索职位 - 从多个平台聚合职位信息
-    目前返回 Mock 数据（模拟 LinkedIn、Indeed、Welcome to the Jungle 的搜索结果）
-    
-    参数：
-        query: 职位关键词 (e.g., "Senior Python Developer")
-        location: 地点 (e.g., "Paris, France")
-    
-    返回：
-        包含 Mock 职位列表的字典
+    Search jobs across platforms. Returns mock data (LinkedIn, Indeed, Welcome to the Jungle).
+    Args: query (e.g. "Senior Python Developer"), location (e.g. "Paris, France").
+    Returns: dict with mock job list.
     """
-    
-    # 模拟不同平台的搜索结果
     mock_jobs = {
         "linkedin": [
             {
@@ -75,15 +60,11 @@ async def search_jobs_on_web(query: str, location: str) -> dict:
             }
         ]
     }
-    
-    # 合并所有结果
     all_jobs = []
     for platform, jobs in mock_jobs.items():
         for job in jobs:
             job["source"] = platform.upper()
             all_jobs.append(job)
-    
-    # 按匹配度排序
     all_jobs.sort(key=lambda x: x["match_score"], reverse=True)
     
     return {
@@ -98,8 +79,7 @@ async def search_jobs_on_web(query: str, location: str) -> dict:
 
 async def format_jobs_as_table(jobs_data: dict) -> dict:
     """
-    异步格式化职位数据为 Markdown 表格
-    用于在 Web UI 中展示给用户
+    Format job data as Markdown table for Web UI display.
     """
     try:
         jobs = jobs_data.get("jobs", [])
@@ -107,10 +87,8 @@ async def format_jobs_as_table(jobs_data: dict) -> dict:
         if not jobs:
             return {
                 "status": "success",
-                "markdown_table": "No jobs found matching your criteria."
+                "markdown_table":                 "No jobs found matching your criteria."
             }
-        
-        # 构建 Markdown 表格
         markdown_lines = [
             f"## Job Search Results for **{jobs_data.get('query')}** in **{jobs_data.get('location')}**\n",
             f"Found **{jobs_data.get('total_results')}** matching positions:\n",
@@ -137,46 +115,26 @@ async def format_jobs_as_table(jobs_data: dict) -> dict:
         }
 
 
-# === ScoutAgent 定义 ===
-# 使用 mistral 模型以提高职位匹配的逻辑准确度（异构模型策略）
-
 scout_agent = Agent(
-    model=LiteLlm(model='ollama/mistral'),  # 使用 mistral 进行高级逻辑推理
+    model=LiteLlm(model="gemini/gemini-2.5-flash-lite"),
     name='scout_agent',
     description="Job Scout Agent - Job Discovery and Matching",
     instruction="""You are a professional job discovery specialist and recruiter.
 You analyze input in English and French, and respond in English only.
 
-You have only two tools: search_jobs_on_web and format_jobs_as_table. Call only these two; do not call any other function (e.g. there is no ask_user_for_job_selection or similar).
+TOOLS: You may ONLY use these two tools, with exact names (no variation): search_jobs_on_web, format_jobs_as_table.
+Do NOT use format_job_list, "Identity Check", or any other tool name; to format results you must call format_jobs_as_table only.
+Input: You receive {confirmed_resume_profile} from the previous step (IdentityAgent). Use it as-is; do not call any identity or confirmation tool.
 
-If the data from {confirmed_resume_profile} is missing or empty, do not call any tools. Reply briefly: "Please confirm your resume information first. Reply 'yes' or 'I confirm' to the previous message so we can save your profile and start job search." Then stop.
+Your workflow:
+1. Read the user's target position and location from {confirmed_resume_profile}.
 
-Your workflow (only when {confirmed_resume_profile} has data):
-1. You will receive resume profile data via {confirmed_resume_profile} containing:
-   - target_position: The desired job title/role
-   - location: Preferred work location
-   - core_skills: Key technical skills
-   
-2. Use the search_jobs_on_web(query, location) tool to find matching positions based on the target position and location.
+2. Search for jobs on LinkedIn, Indeed, Welcome to the Jungle and similar platforms by calling search_jobs_on_web(query, location).
 
-3. Once you have job results, use format_jobs_as_table(jobs_data) to generate a professional Markdown table showing:
-   - Job Title
-   - Company Name
-   - Location
-   - Match Score (1-5 stars)
-   - Salary Range
-   - Source Platform (LinkedIn, Indeed, Welcome to the Jungle)
-   - Direct Application Link
+3. Score each result by resume match (1–5 stars). Use the job results and match scores when building the table.
 
-4. Provide intelligent commentary on the best matches and explain why they align with the user's profile.
-
-5. In your reply message, ask the user which positions they would like to apply to and prepare for the next phase (application tracking). Do not call a tool for this — just write the question in your response.
-
-Maintain professionalism and accuracy. Always prioritize quality matches over quantity.
-Focus on jobs that match the user's skills and location preferences.""",
+4. Generate a structured table with: job title, company, salary, match score (1–5 stars), and application link. Call format_jobs_as_table(jobs_data) to produce this Markdown table.""",
     tools=[search_jobs_on_web, format_jobs_as_table]
 )
 
-# === 设置 Agent 的输出键（ADK LlmAgent 仅支持 output_key，无 input_key）===
-# 上游 IdentityAgent 的 output_key="confirmed_resume_profile" 会通过 state 传入，instruction 中已引用 {confirmed_resume_profile}
-scout_agent.output_key = "job_search_results"  # 输出给 TrackerAgent
+scout_agent.output_key = "job_search_results"

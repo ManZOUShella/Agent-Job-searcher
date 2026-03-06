@@ -13,13 +13,5 @@
     "Microservices",
     "REST API Design",
     "Machine Learning"
-  ],
-  "experience": [
-    {
-      "company": "TechCorp",
-      "position": "Python Developer",
-      "duration": "2022-Present",
-      "description": "Developed backend APIs and microservices"
-    }
   ]
 }
