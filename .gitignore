@@ -1,0 +1,4 @@
+# 不要提交密钥与本地环境（instruction.md）
+.env
+.venv/
+my_agent/.env
