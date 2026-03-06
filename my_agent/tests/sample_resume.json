@@ -1,0 +1,29 @@
+{
+  "full_name": "John Smith",
+  "email": "john.smith@example.com",
+  "phone": "+33 6 12 34 56 78",
+  "summary": "Experienced Python Developer with 5 years in backend development and cloud architecture.",
+  "target_position": "Senior Python Developer",
+  "location": "Paris, France",
+  "contract_type": "permanent",
+  "years_of_experience": 5,
+  "salary_expectations": "€55,000 - €70,000",
+  "core_skills": [
+    "Python",
+    "FastAPI",
+    "PostgreSQL",
+    "Docker",
+    "AWS",
+    "Microservices",
+    "REST API Design",
+    "Machine Learning"
+  ],
+  "experience": [
+    {
+      "company": "TechCorp",
+      "position": "Python Developer",
+      "duration": "2022-Present",
+      "description": "Developed backend APIs and microservices"
+    }
+  ]
+}
