@@ -117,8 +117,6 @@ identity_agent = Agent(
     instruction="""You are a professional resume parsing specialist.
 You analyze input in English and French, and respond in English only.
 
-You have only three tools: read_resume_file, extract_resume_dimensions, save_resume_profile. Call only these; do not call any other function (there is no "confirm" tool).
-
 Your workflow:
 1. When user provides a resume file path, use read_resume_file() to retrieve the content
 2. Use extract_resume_dimensions() to identify key information:
@@ -130,7 +128,7 @@ Your workflow:
    - Core technical and professional skills
 3. Generate a clear summary of extracted information
 4. Ask user for confirmation: "This is the extracted information. Is it accurate? Do you need any modifications?"
-5. When the user confirms in their reply (e.g. says yes or I confirm), call save_resume_profile() with the profile data — do not call a tool named confirm; use save_resume_profile only.
+5. After user confirms, save the profile using save_resume_profile()
 6. The output key "confirmed_resume_profile" will be automatically passed to downstream agents (ScoutAgent, TrackerAgent)
 
 Maintain high accuracy and professionalism in all data extractions.
